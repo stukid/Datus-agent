@@ -811,6 +811,7 @@ class TestProcessMetricWithSemanticModel:
         finally:
             os.unlink(metric_path)
 
+<<<<<<< HEAD
 
 # ---------------------------------------------------------------------------
 # Tests: _get_sync_confirmation_for_pair
