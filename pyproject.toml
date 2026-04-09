@@ -73,8 +73,8 @@ dependencies = [
     "markdown-it-py>=3.0.0",
     "tabulate>=0.9.0",
     "datus-semantic-metricflow>=0.1.6",
+    "datus-semantic-core>=0.1.0",
 ]
-#[tool.uv.sources]
 
 # for debug
 
@@ -86,6 +86,7 @@ dependencies = [
 scheduler = ["datus-scheduler-airflow>=0.1.0"]
 
 [tool.uv.sources]
+datus-semantic-core = { path = "../datus-semantic-adapter/datus-semantic-core", editable = true }
 datus-scheduler-airflow = { path = "../datus-scheduler-adapters/datus-scheduler-airflow", editable = true }
 
 [project.urls]
