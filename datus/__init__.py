@@ -4,4 +4,4 @@
 
 """Datus - Data engineering agent builds evolvable context for your data system"""
 
-__version__ = "0.2.6"
+__version__ = "0.3.0rc3"
