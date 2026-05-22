@@ -135,7 +135,7 @@ class TestEnsureAdapter:
         )
         result = sai.ensure_adapter("bi_platforms", "ghost")
         assert result.ok is False
-        assert result.error == "uv pip install exited with code 1"
+        assert result.error == "uv pip install exited with code 1: resolve failed"
 
     def test_pip_failure_surfaces_error(self, monkeypatch):
         monkeypatch.setattr(sai, "is_adapter_installed", lambda *_: False)
@@ -147,7 +147,7 @@ class TestEnsureAdapter:
         )
         result = sai.ensure_adapter("bi_platforms", "ghost")
         assert result.ok is False
-        assert result.error == "pip install exited with code 1"
+        assert result.error == "pip install exited with code 1: ERROR: not found"
         assert "ERROR" in result.stderr
 
     def test_unknown_section_returns_error(self):
@@ -174,6 +174,7 @@ class TestEnsureAdapter:
         assert result.ok is True
         assert result.package == "datus-semantic-metricflow"
         assert "datus-semantic-metricflow" in captured["cmd"]
+        assert "snowflake-connector-python<4" in captured["cmd"]
 
     def test_line_callback_receives_pip_output(self, monkeypatch):
         monkeypatch.setattr(sai, "is_adapter_installed", lambda *_: False)

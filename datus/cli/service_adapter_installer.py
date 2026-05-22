@@ -68,6 +68,14 @@ _EP_GROUPS: dict[str, str] = {
     "semantic_layer": "datus.semantic_adapters",
 }
 
+# Known transitive constraints needed by published adapter packages.
+# TODO: remove the metricflow entry after datus-metricflow publishes an
+# upper bound or Python 3.12/macOS wheels for the Snowflake 4.x line are
+# reliably available in our supported environments.
+_INSTALL_CONSTRAINTS: dict[Tuple[str, str], Tuple[str, ...]] = {
+    ("semantic_layer", "metricflow"): ("snowflake-connector-python<4",),
+}
+
 
 @dataclass
 class InstallResult:
@@ -119,7 +127,7 @@ def is_adapter_installed(section: str, adapter_type: str) -> bool:
         return False
 
 
-def _install_command(pkg: str) -> Tuple[List[str], str]:
+def _install_command(pkg: str, extra_requirements: Tuple[str, ...] = ()) -> Tuple[List[str], str]:
     """Pick the install command, preferring ``uv pip`` when available.
 
     Mirrors ``datus.cli.datasource_commands._install_plugin``: ``uv tool
@@ -132,10 +140,11 @@ def _install_command(pkg: str) -> Tuple[List[str], str]:
     (``"uv pip install"`` / ``"pip install"``) so callers can build
     error messages that match the command actually executed.
     """
+    requirements = [pkg, *extra_requirements]
     uv_path = shutil.which("uv")
     if uv_path:
-        return [uv_path, "pip", "install", "--python", sys.executable, pkg], "uv pip install"
-    return [sys.executable, "-m", "pip", "install", pkg], "pip install"
+        return [uv_path, "pip", "install", "--python", sys.executable, *requirements], "uv pip install"
+    return [sys.executable, "-m", "pip", "install", *requirements], "pip install"
 
 
 def ensure_adapter(
@@ -159,7 +168,7 @@ def ensure_adapter(
     if is_adapter_installed(section, adapter_type):
         return InstallResult(ok=True, package=pkg, import_name=import_name)
 
-    cmd, label = _install_command(pkg)
+    cmd, label = _install_command(pkg, _install_constraints(section, adapter_type))
     logger.info("Installing adapter package: %s", " ".join(cmd))
     try:
         proc = subprocess.run(
@@ -185,7 +194,7 @@ def ensure_adapter(
             import_name=import_name,
             stdout=stdout,
             stderr=stderr,
-            error=f"{label} exited with code {proc.returncode}",
+            error=_install_error_message(label, proc.returncode, stdout, stderr),
         )
 
     importlib.invalidate_caches()
@@ -196,6 +205,47 @@ def ensure_adapter(
         stdout=stdout,
         stderr=stderr,
     )
+
+
+def _install_constraints(section: str, adapter_type: str) -> Tuple[str, ...]:
+    type_token = (adapter_type or "").strip().lower()
+    return _INSTALL_CONSTRAINTS.get((section, type_token), ())
+
+
+def _install_error_message(label: str, returncode: int, stdout: str, stderr: str) -> str:
+    message = f"{label} exited with code {returncode}"
+    detail = _summarize_installer_output(stdout, stderr)
+    if detail:
+        return f"{message}: {detail}"
+    return message
+
+
+def _summarize_installer_output(stdout: str, stderr: str, max_chars: int = 320) -> str:
+    output = "\n".join(part for part in (stderr, stdout) if part)
+    if not output:
+        return ""
+
+    interesting: list[str] = []
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        lower = line.lower()
+        if (
+            lower.startswith("error:")
+            or lower.startswith("fatal error:")
+            or lower.startswith("failed ")
+            or "failed to build" in lower
+            or "no matching distribution" in lower
+            or "could not find" in lower
+        ):
+            interesting.append(line)
+
+    lines = interesting[-3:] if interesting else [line.strip() for line in output.splitlines() if line.strip()][-1:]
+    summary = " | ".join(lines)
+    if len(summary) > max_chars:
+        return summary[: max_chars - 3].rstrip() + "..."
+    return summary
 
 
 def hot_reload_adapter(section: str, adapter_type: str) -> bool:
